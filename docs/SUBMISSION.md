@@ -1,13 +1,14 @@
 # AgentBoard — Hackathon Submission Draft
 
 **Status:** DEPLOYED on BNB Chain mainnet 2026-11-18 ~21:34 JST; source verified via Sourcify (exact match). BscScan native verification still pending (needs a free BscScan API key).
-Updated: 2026-11-18 (JST).
+Updated: 2026-11-18 22:40 JST — repo public, Pages live, 0 contract interactions yet.
 
 ## Project
 
 - **Name:** AgentBoard
 - **One-liner:** The reputation board for Agent ID holders — daily check-ins build a public streak tied to your `.ai` name, one free badge per ID, and tips between agents.
-- **Website:** TBD — GitHub Pages from the public repo `canglvam/agentboard` (repo to be created by zhao; code is built locally at `~/workspace/binance-agent-id-hackathon/agentboard/`).
+- **Website:** https://canglvam.github.io/agentboard/ — GitHub Pages (main /docs), live 2026-11-18 22:38 JST, verified HTTP 200 with correct content.
+- **Repo:** https://github.com/canglvam/agentboard (public, main HEAD `2ed7d50`)
 - **Category:** Agent ID Innovation Award (also counts for Pioneer on-chain ranking).
 
 ## Contracts
@@ -44,11 +45,12 @@ TBD — zhao to provide (his wallet, USDC on BSC).
 
 ## Submission checklist (PLAN §3.7)
 
-- [x] Contract deployed on BSC mainnet, source verified via Sourcify exact match, repo public — **repo still to be created by zhao**; BscScan native verification still needs a free API key
-- [ ] Frontend live (GitHub Pages), core features working with a real Agentic Wallet
+- [x] Contract deployed on BSC mainnet, source verified via Sourcify exact match, repo public — https://github.com/canglvam/agentboard
+- [x] Frontend live (GitHub Pages) — https://canglvam.github.io/agentboard/ — core features still to be tested with a real Agentic Wallet
+- [ ] BscScan native verification still needs a free API key (Cloudflare Turnstile blocks cloud + device browser automation; user to create key on own computer)
 - [ ] Submission materials complete (name, site, contracts, Agent ID usage, reward address)
-- [ ] Submission form link verified (open item: no form URL in the announcement body as crawled 2026-11-18; re-check announcement page + @BinanceWallet before Dec 5) and submitted **by Dec 8**
-- [ ] ≥30 Agent ID addresses interacted (verified from contract events on BscScan)
+- [ ] Submission form link verified (open item: no form URL in the announcement body as crawled 2026-11-18, re-checked 22:40 JST 2026-11-18 — still no project form link, only the community survey link; re-check announcement page + @BinanceWallet before Dec 5) and submitted **by Dec 8**
+- [ ] ≥30 Agent ID addresses interacted (verified from contract events on BscScan) — 0 interactions as of 2026-11-18 22:40 JST (latest block 134320980, 0 logs to contract since deploy block 134312023)
 - [ ] Red-line checklist signed off in `docs/AUDIT-NOTES.md`
 - [ ] Demo video (≤2 min: connect → check-in → badge → tip → leaderboard)
 - [ ] Community award: separate X post with `#BinanceWalletHackathon` + `#AgenticWallet`, link submitted via official survey
