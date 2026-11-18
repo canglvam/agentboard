@@ -55,6 +55,22 @@ let account = null;
 let board = null; // write contract (signer)
 let boardRead = null; // read contract (public RPC)
 let registryRead = null;
+
+// Read-only contracts must exist BEFORE any board load: refreshBoard()
+// runs on page load, long before the user connects. Previously boardRead
+// was only created inside connect(), so the leaderboard always threw
+// "null is not an object (evaluating 'boardRead.queryFilter')" on load.
+function initReadContracts() {
+  if (!CONFIG.agentBoard || !CONFIG.agentIdRegistry) return;
+  try {
+    const rpc = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
+    boardRead = new ethers.Contract(CONFIG.agentBoard, BOARD_ABI, rpc);
+    registryRead = new ethers.Contract(CONFIG.agentIdRegistry, REGISTRY_ABI, rpc);
+  } catch {
+    boardRead = null;
+    registryRead = null;
+  }
+}
 let nameCache = {};
 let resolvedTipTo = null;
 
@@ -169,6 +185,10 @@ async function refreshBoard() {
   const lb = $("leaderboard");
   const tp = $("tippers");
   const rt = $("recent-tips");
+  if (!boardRead) {
+    lb.innerHTML = "<li>Board not ready yet — please refresh the page.</li>";
+    return;
+  }
   try {
     const fromBlock = CONFIG.deployBlock || 0;
     const checkIns = await boardRead.queryFilter(boardRead.filters.CheckIn, fromBlock);
@@ -221,30 +241,55 @@ async function connect() {
     return;
   }
   try {
+    // Request accounts FIRST: some in-app providers (Binance app) only
+    // report a chainId after the user has connected, and ethers throws
+    // "invalid BigNumberish string: empty string" if it reads "" first.
+    let accounts = [];
+    try {
+      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    } catch {
+      accounts = [];
+    }
     provider = new ethers.BrowserProvider(window.ethereum);
-    const network = await provider.getNetwork();
-    if (Number(network.chainId) !== CONFIG.chainId) {
+    // Read chainId directly, guarding against an empty return.
+    let chainId = null;
+    try {
+      const raw = await window.ethereum.request({ method: "eth_chainId" });
+      if (raw !== null && raw !== undefined && raw !== "") chainId = Number(BigInt(raw));
+    } catch {
+      chainId = null;
+    }
+    if (chainId === null) {
+      try {
+        const net = await provider.getNetwork();
+        chainId = Number(net.chainId);
+      } catch {
+        chainId = null;
+      }
+    }
+    if (chainId !== null && chainId !== CONFIG.chainId) {
       try {
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: "0x" + CONFIG.chainId.toString(16) }],
         });
+        chainId = CONFIG.chainId;
       } catch (switchErr) {
         showMsg(errEl, "Please switch your wallet to " + CONFIG.network + " (chain " + CONFIG.chainId + ").", true);
         return;
       }
       provider = new ethers.BrowserProvider(window.ethereum);
     }
-    signer = await provider.getSigner();
+    signer = accounts.length
+      ? await provider.getSigner(accounts[0])
+      : await provider.getSigner();
     account = await signer.getAddress();
-    const rpc = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
-    boardRead = new ethers.Contract(CONFIG.agentBoard, BOARD_ABI, rpc);
-    registryRead = new ethers.Contract(CONFIG.agentIdRegistry, REGISTRY_ABI, rpc);
+    if (!boardRead || !registryRead) initReadContracts();
     board = new ethers.Contract(CONFIG.agentBoard, BOARD_ABI, signer);
 
     $("account-line").textContent = "Connected: " + account;
     $("network-name").textContent = CONFIG.network + " (chain " + CONFIG.chainId + ")";
-    $("connect-btn").textContent = "Connected ✓";
+    $("connect-btn").textContent = "Connected \u2713";
     $("connect-btn").disabled = true;
     $("id-card").hidden = false;
     $("actions-card").hidden = false;
@@ -252,13 +297,13 @@ async function connect() {
     const holds = await boardRead.hasAgentId(account);
     if (!holds) {
       $("agent-name").textContent = shortAddr(account);
-      $("agent-status").textContent = "This address does not hold an Agent ID yet. Switch to your Agentic Wallet (the address that holds your .ai name) or claim an Agent ID in the Binance app first — check-in, badge and tips are gated on holding one.";
+      $("agent-status").textContent = "This address does not hold an Agent ID yet. Switch to your Agentic Wallet (the address that holds your .ai name) or claim an Agent ID in the Binance app first \u2014 check-in, badge and tips are gated on holding one.";
       $("checkin-btn").disabled = true;
       $("badge-btn").disabled = true;
     } else {
       const name = await resolveName(account);
       $("agent-name").textContent = name;
-      $("agent-status").textContent = "Agent ID confirmed on-chain ✓";
+      $("agent-status").textContent = "Agent ID confirmed on-chain \u2713";
       await refreshMyStats();
     }
     await refreshBoard();
@@ -357,4 +402,5 @@ $("tip-send-btn").addEventListener("click", doSendTip);
 $("contract-addr").textContent = CONFIG.agentBoard || "(deploy first — see config.js)";
 $("registry-addr").textContent = CONFIG.agentIdRegistry || "—";
 $("network-name").textContent = CONFIG.network + " (chain " + CONFIG.chainId + ")";
+initReadContracts();
 if (CONFIG.agentBoard) refreshBoard();
