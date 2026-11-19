@@ -27,6 +27,23 @@
     <p id="connect-error" class="error" hidden></p>
   </section>
 
+  <section class="card" id="agentic-card">
+    <h2>Agentic Wallet</h2>
+    <p class="hint">Your Agentic Wallet (the address that holds your <code>.ai</code> name) <strong>cannot be connected directly</strong> — Binance does not expose it as a browser wallet. It can only send transactions through an AI Agent. The official way to check in from it is:</p>
+    <ol>
+      <li>In the Binance App, open your Agentic Wallet settings and turn on <strong>Developer Mode</strong> (it expires — re-enable it if needed).</li>
+      <li>In Binance AI Pro, paste this and confirm the transaction:</li>
+    </ol>
+    <p class="preview" id="ai-pro-prompt">Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.</p>
+    <p class="hint">Then check the result here — no wallet connection needed for this check:</p>
+    <label>Your Agentic Wallet address (0x…)
+      <input id="agentic-addr" type="text" placeholder="0x…" autocomplete="off">
+    </label>
+    <button id="agentic-check-btn" class="btn">Check Agentic status</button>
+    <p id="agentic-msg" class="msg" hidden></p>
+    <p class="warn">Never scan a QR code on a third-party website to log in to your Agentic Wallet — Binance warns this can give the site control of the wallet. Only use Binance AI Pro / trusted Agents.</p>
+  </section>
+
   <section class="card" id="id-card" hidden>
     <h2>Your Agent ID</h2>
     <p class="big" id="agent-name">—</p>

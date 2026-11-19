@@ -27,6 +27,66 @@ const CONFIG = window.AGENTBOARD_CONFIG || {
 // No third-party name API is used: forward resolution is on-chain (see
 // header comment). Reverse lookup is not publicly available for .ai.
 
+// Provider discovery — Binance's official injected provider inside the
+// Binance App's dApp browser is window.binancew3w.ethereum (EIP-1193),
+// NOT window.ethereum. window.ethereum in the Binance App may be a
+// generic provider that only exposes the MAIN Binance Wallet.
+// The Agentic Wallet has NO injected provider at all by design (Binance
+// Agentic Wallet dev docs, 2026-10-29): "It does not sign or initiate
+// arbitrary transactions" — only swap/transfer/limit/prediction via an
+// AI Agent, plus custom contract calls in Developer Mode (switch only
+// in the Binance App, time-boxed, separately limited). No frontend code
+// can make window.ethereum point at the Agentic Wallet, because Binance
+// never exposes it there. The supported path is therefore:
+//   1. Use the official provider below (binancew3w first) for the main wallet.
+//   2. For the Agentic Wallet address, use Binance AI Pro + Developer
+//      Mode to send the check-in (see the Agentic panel in index.html),
+//      then verify it on-chain here with checkAgenticStatus() — no wallet
+//      connection needed for that read.
+const discoveredProviders = new Map();
+function collectProvider(detail) {
+  try {
+    if (detail && detail.info && detail.provider) {
+      discoveredProviders.set(detail.info.rdns || detail.info.name || "unknown", detail.provider);
+    }
+  } catch { /* ignore */ }
+}
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("eip6963:announceProvider", (e) => collectProvider(e.detail));
+  try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch { /* ignore */ }
+}
+function getInjectedProvider() {
+  // Official Binance provider first, then generic injected, then EIP-6963.
+  if (window.binancew3w && window.binancew3w.ethereum) return window.binancew3w.ethereum;
+  if (window.ethereum) return window.ethereum;
+  for (const prov of discoveredProviders.values()) return prov;
+  return null;
+}
+let activeProvider = null;
+
+// Check an Agentic Wallet address on-chain (public RPC, no wallet needed):
+// does it hold an Agent ID, and has it checked in / claimed a badge yet?
+async function checkAgenticStatus() {
+  const msg = $("agentic-msg");
+  const raw = $("agentic-addr").value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) { showMsg(msg, "Enter your Agentic Wallet 0x address first.", true); return; }
+  if (!boardRead) initReadContracts();
+  if (!boardRead) { showMsg(msg, "Board not ready yet — please refresh the page.", true); return; }
+  try {
+    showMsg(msg, "Checking on-chain…");
+    const holds = await boardRead.hasAgentId(raw);
+    if (!holds) {
+      showMsg(msg, "This address does not hold an Agent ID on-chain.", true);
+      return;
+    }
+    const [streak, total, , hasBadge] = await boardRead.getStats(raw);
+    showMsg(msg, "Agent ID confirmed \u2713 — streak " + streak.toString() + " day(s), " + total.toString() + " check-in(s), badge: " + (hasBadge ? "claimed \u2713" : "not claimed yet") + ". If this is 0 check-ins, ask Binance AI Pro (Developer Mode on) to call checkIn() on the contract, then check again here.");
+    await refreshBoard();
+  } catch (e) {
+    showMsg(msg, "Check failed: " + (e.reason || e.message), true);
+  }
+}
+
 const BOARD_ABI = [
   "function checkIn()",
   "function claimBadge()",
@@ -236,7 +296,8 @@ async function refreshBoard() {
 async function connect() {
   const errEl = $("connect-error");
   errEl.hidden = true;
-  if (!window.ethereum) {
+  activeProvider = getInjectedProvider();
+  if (!activeProvider) {
     showMsg(errEl, "No wallet found. Open this page in the Binance app's built-in browser, or install a wallet.", true);
     return;
   }
@@ -246,15 +307,15 @@ async function connect() {
     // "invalid BigNumberish string: empty string" if it reads "" first.
     let accounts = [];
     try {
-      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      accounts = await activeProvider.request({ method: "eth_requestAccounts" });
     } catch {
       accounts = [];
     }
-    provider = new ethers.BrowserProvider(window.ethereum);
+    provider = new ethers.BrowserProvider(activeProvider);
     // Read chainId directly, guarding against an empty return.
     let chainId = null;
     try {
-      const raw = await window.ethereum.request({ method: "eth_chainId" });
+      const raw = await activeProvider.request({ method: "eth_chainId" });
       if (raw !== null && raw !== undefined && raw !== "") chainId = Number(BigInt(raw));
     } catch {
       chainId = null;
@@ -269,7 +330,7 @@ async function connect() {
     }
     if (chainId !== null && chainId !== CONFIG.chainId) {
       try {
-        await window.ethereum.request({
+        await activeProvider.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: "0x" + CONFIG.chainId.toString(16) }],
         });
@@ -278,7 +339,7 @@ async function connect() {
         showMsg(errEl, "Please switch your wallet to " + CONFIG.network + " (chain " + CONFIG.chainId + ").", true);
         return;
       }
-      provider = new ethers.BrowserProvider(window.ethereum);
+      provider = new ethers.BrowserProvider(activeProvider);
     }
     signer = accounts.length
       ? await provider.getSigner(accounts[0])
@@ -392,6 +453,7 @@ async function doSendTip() {
 }
 
 $("connect-btn").addEventListener("click", connect);
+$("agentic-check-btn").addEventListener("click", checkAgenticStatus);
 $("verify-name-btn").addEventListener("click", verifyMyName);
 $("checkin-btn").addEventListener("click", doCheckIn);
 $("badge-btn").addEventListener("click", doClaimBadge);
