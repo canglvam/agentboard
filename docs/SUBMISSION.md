@@ -41,7 +41,7 @@ Updated: 2026-11-18 22:40 JST — repo public, Pages live, 0 contract interactio
 
 ## Reward-receiving address
 
-TBD — zhao to provide (his wallet, USDC on BSC).
+Decided 2026-11-19 (user approved): Agentic Wallet `0x3424ed37Fa7AE383e2410583B667fFc541daee9d` (USDC on BSC).
 
 ## Submission checklist (PLAN §3.7)
 
