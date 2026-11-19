@@ -251,8 +251,18 @@ async function refreshBoard() {
   }
   try {
     const fromBlock = CONFIG.deployBlock || 0;
-    const checkIns = await boardRead.queryFilter(boardRead.filters.CheckIn, fromBlock);
-    const tips = await boardRead.queryFilter(boardRead.filters.Tip, fromBlock);
+    const toBlock = await boardRead.runner.provider.getBlockNumber();
+    async function queryChunked(filter) {
+      const out = [];
+      const CHUNK = 40000;
+      for (let from = fromBlock; from <= toBlock; from += CHUNK) {
+        const to = Math.min(from + CHUNK - 1, toBlock);
+        out.push(...await boardRead.queryFilter(filter, from, to));
+      }
+      return out;
+    }
+    const checkIns = await queryChunked(boardRead.filters.CheckIn);
+    const tips = await queryChunked(boardRead.filters.Tip);
     const latest = {};
     const totals = {};
     for (const ev of checkIns) {
@@ -406,7 +416,8 @@ async function doResolveTip() {
   const msg = $("tip-msg");
   const raw = $("tip-to").value.trim();
   resolvedTipTo = null;
-  $("tip-send-btn").disabled = true;
+  const _sendBtn = $("tip-send-btn");
+  if (_sendBtn) _sendBtn.disabled = true;
   $("tip-preview").hidden = true;
   if (!raw) { showMsg(msg, "Enter a recipient first.", true); return; }
   let addr = null;
@@ -431,8 +442,7 @@ async function doResolveTip() {
   const amount = $("tip-amount").value || "0";
   $("tip-preview").hidden = false;
   $("tip-preview").textContent =
-    "Send " + amount + " BNB to " + (await resolveName(addr)) + " (" + shortAddr(addr) + "). 100% forwarded, no fee.";
-  $("tip-send-btn").disabled = false;
+    "Send " + amount + " BNB to " + (await resolveName(addr)) + " (" + shortAddr(addr) + "). 100% forwarded, no fee. Copy the AI Pro prompt below to send it from your Agentic Wallet.";
   showMsg(msg, "Recipient verified ✓ — check the preview, then send.");
 }
 
@@ -452,17 +462,19 @@ async function doSendTip() {
   }
 }
 
-$("connect-btn").addEventListener("click", connect);
-$("agentic-check-btn").addEventListener("click", checkAgenticStatus);
-$("verify-name-btn").addEventListener("click", verifyMyName);
-$("checkin-btn").addEventListener("click", doCheckIn);
-$("badge-btn").addEventListener("click", doClaimBadge);
-$("refresh-btn").addEventListener("click", refreshBoard);
-$("tip-resolve-btn").addEventListener("click", doResolveTip);
-$("tip-send-btn").addEventListener("click", doSendTip);
+// Connect / check-in / badge buttons were removed: the Connect button
+// could only ever reach the MAIN Binance Wallet, never the Agentic
+// Wallet, so it only confused users. Check-in, badge and tip from the
+// Agentic Wallet go through Binance AI Pro + Developer Mode (see the
+// Agentic panel); this page is now a dashboard + on-chain checker.
+const _on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
+_on("agentic-check-btn", "click", checkAgenticStatus);
+_on("refresh-btn", "click", refreshBoard);
+_on("tip-resolve-btn", "click", doResolveTip);
 
-$("contract-addr").textContent = CONFIG.agentBoard || "(deploy first — see config.js)";
-$("registry-addr").textContent = CONFIG.agentIdRegistry || "—";
-$("network-name").textContent = CONFIG.network + " (chain " + CONFIG.chainId + ")";
+const _setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+_setText("contract-addr", CONFIG.agentBoard || "(deploy first — see config.js)");
+_setText("registry-addr", CONFIG.agentIdRegistry || "—");
+_setText("network-name", CONFIG.network + " (chain " + CONFIG.chainId + ")");
 initReadContracts();
 if (CONFIG.agentBoard) refreshBoard();
