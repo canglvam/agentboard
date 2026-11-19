@@ -412,6 +412,44 @@ async function doClaimBadge() {
   }
 }
 
+// AI Pro prompts (JS originals — the Copy buttons copy these, so the
+// in-app browser's Google Translate can't mangle what gets pasted).
+const CHECKIN_PROMPT = "Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.";
+let currentTipPrompt = "Call tip() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. Recipient: [check a recipient above first]. Amount and message: [fill in]. This forwards 100% of the tip, no fee.";
+
+function updateTipPrompt() {
+  // Fills the recipient, amount and message straight into the AI Pro
+  // prompt below — no pasting the address a second time.
+  if (!resolvedTipTo) return;
+  const amount = $("tip-amount").value || "0";
+  const message = $("tip-message").value || "";
+  const name = $("tip-to").value.trim();
+  const to = name && name.toLowerCase() !== resolvedTipTo.toLowerCase()
+    ? resolvedTipTo + " (" + name + ")"
+    : resolvedTipTo;
+  currentTipPrompt = "Call tip() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. Recipient: " + to + ". Amount: " + amount + " BNB. Message: " + (message || "(none)") + ". This forwards 100% of the tip, no fee.";
+  const el = $("ai-pro-tip-prompt");
+  if (el) el.textContent = currentTipPrompt;
+}
+
+async function copyTextToClipboard(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = "Copied ✓";
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }
+}
+
 async function doResolveTip() {
   const msg = $("tip-msg");
   const raw = $("tip-to").value.trim();
@@ -443,7 +481,8 @@ async function doResolveTip() {
   $("tip-preview").hidden = false;
   $("tip-preview").textContent =
     "Send " + amount + " BNB to " + (await resolveName(addr)) + " (" + shortAddr(addr) + "). 100% forwarded, no fee. Copy the AI Pro prompt below to send it from your Agentic Wallet.";
-  showMsg(msg, "Recipient verified ✓ — check the preview, then send.");
+  updateTipPrompt();
+  showMsg(msg, "Recipient verified ✓ — the AI Pro prompt below is filled in, copy it to send.");
 }
 
 async function doSendTip() {
@@ -471,6 +510,10 @@ const _on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, 
 _on("agentic-check-btn", "click", checkAgenticStatus);
 _on("refresh-btn", "click", refreshBoard);
 _on("tip-resolve-btn", "click", doResolveTip);
+_on("copy-checkin-prompt-btn", "click", (e) => copyTextToClipboard(CHECKIN_PROMPT, e.currentTarget));
+_on("copy-tip-prompt-btn", "click", (e) => copyTextToClipboard(currentTipPrompt, e.currentTarget));
+_on("tip-amount", "input", updateTipPrompt);
+_on("tip-message", "input", updateTipPrompt);
 
 const _setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
 _setText("contract-addr", CONFIG.agentBoard || "(deploy first — see config.js)");

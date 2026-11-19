@@ -26,7 +26,8 @@
       <li>In the Binance App, open your Agentic Wallet settings and turn on <strong>Developer Mode</strong> (it expires — re-enable it if needed).</li>
       <li>In Binance AI Pro, paste this and confirm the transaction:</li>
     </ol>
-    <p class="preview" id="ai-pro-prompt">Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.</p>
+    <p class="preview notranslate" id="ai-pro-prompt" translate="no">Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.</p>
+    <button id="copy-checkin-prompt-btn" class="btn small notranslate" translate="no">Copy prompt</button>
     <p class="hint">Then check the result here — no wallet connection needed for this check:</p>
     <label>Your Agentic Wallet address (0x…)
       <input id="agentic-addr" type="text" placeholder="0x…" autocomplete="off">
@@ -63,7 +64,8 @@
     <p id="tip-preview" class="preview" hidden></p>
     <button id="tip-resolve-btn" class="btn">Check recipient</button>
     <p class="hint">To send the tip from your Agentic Wallet, paste this into Binance AI Pro (Developer Mode on):</p>
-    <p class="preview" id="ai-pro-tip-prompt">Call tip() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. Recipient: [paste the .ai name or 0x address you checked above]. Amount and message: [fill in]. This forwards 100% of the tip, no fee.</p>
+    <p class="preview notranslate" id="ai-pro-tip-prompt" translate="no">Call tip() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. Recipient: [check a recipient above first]. Amount and message: [fill in]. This forwards 100% of the tip, no fee.</p>
+    <button id="copy-tip-prompt-btn" class="btn small notranslate" translate="no">Copy prompt</button>
     <p class="warn">Tips are voluntary and non-refundable. Double-check the recipient before confirming in your wallet — the transaction cannot be undone.</p>
     <p id="tip-msg" class="msg" hidden></p>
   </section>
