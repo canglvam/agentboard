@@ -1,7 +1,7 @@
 # AgentBoard — Hackathon Submission Draft
 
 **Status:** DEPLOYED on BNB Chain mainnet 2026-11-18 ~21:34 JST; source verified via Sourcify (exact match). BscScan native verification still pending (needs a free BscScan API key).
-Updated: 2026-11-18 22:40 JST — repo public, Pages live, 0 contract interactions yet.
+Updated: 2026-11-19 12:09 JST — repo public, Pages live, 99 distinct Agent ID holders claimed badges (gate ≥30 CLEARED), 4 check-ins, 0 tips.
 
 ## Project
 
@@ -50,7 +50,7 @@ Decided 2026-11-19 (user approved): Agentic Wallet `0x3424ed37Fa7AE383e2410583B6
 - [x] BscScan native verification — VERIFIED 2026-11-19 via Etherscan V2 API (key connected by user): ContractName AgentBoard, compiler v0.8.30+commit.73712a01, optimizer on runs 200, EVM cancun, full ABI + standard-JSON source live on BscScan. Sourcify exact match also live.
 - [ ] Submission materials complete (name, site, contracts, Agent ID usage, reward address)
 - [ ] Submission form link verified (open item: no form URL in the announcement body as crawled 2026-11-18, re-checked 22:40 JST 2026-11-18 — still no project form link, only the community survey link; re-check announcement page + @BinanceWallet before Dec 5) and submitted **by Dec 8**
-- [ ] ≥30 Agent ID addresses interacted (verified from contract events on BscScan) — 0 interactions as of 2026-11-18 22:40 JST (latest block 134320980, 0 logs to contract since deploy block 134312023)
+- [x] ≥30 Agent ID addresses interacted (verified from contract events via BSC RPC) — 99 distinct badge claimers as of 2026-11-19 12:09 JST (BadgeClaimed events total 99, _nextTokenId starts at 1; canglvam.ai claimed tokenId 99 at 03:04:12 UTC), plus 4 check-ins
 - [ ] Red-line checklist signed off in `docs/AUDIT-NOTES.md`
 - [ ] Demo video (≤2 min: connect → check-in → badge → tip → leaderboard)
 - [ ] Community award: separate X post with `#BinanceWalletHackathon` + `#AgenticWallet`, link submitted via official survey
