@@ -26,6 +26,13 @@
       <li>In the Binance App, open your Agentic Wallet settings and turn on <strong>Developer Mode</strong> (it expires — re-enable it if needed).</li>
       <li>In Binance AI Pro, first say “Log in to my Agentic Wallet” and finish the login, then paste this and confirm the transaction:</li>
     </ol>
+    <h3>How the daily check-in counts</h3>
+    <ul>
+      <li>One check-in = one <code>checkIn()</code> call from your Agentic Wallet, confirmed on-chain.</li>
+      <li>One per UTC day — a new day starts at 00:00 UTC. A second check-in the same UTC day fails (already checked in).</li>
+      <li>Streak = consecutive UTC days. Miss a day and the next check-in starts back at 1.</li>
+      <li>Free except a tiny gas fee. Your streak and total are on the leaderboard below.</li>
+    </ul>
     <p class="preview notranslate" id="ai-pro-prompt" translate="no">Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.</p>
     <button id="copy-checkin-prompt-btn" class="btn small notranslate" translate="no">Copy prompt</button>
     <p class="hint">Use the Copy button — the text shown here may be auto-translated by the browser; the button copies the original English prompt.</p>
