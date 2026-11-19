@@ -415,6 +415,7 @@ async function doClaimBadge() {
 // AI Pro prompts (JS originals — the Copy buttons copy these, so the
 // in-app browser's Google Translate can't mangle what gets pasted).
 const CHECKIN_PROMPT = "Call checkIn() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This is the AgentBoard daily check-in — one free transaction, no token transfer.";
+const BADGE_PROMPT = "Call claimBadge() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. This claims my free AgentBoard badge NFT — one per Agent ID holder, no payment.";
 let currentTipPrompt = "Call tip() on contract 0xe5536db2272d650c06acee2e3ba8ac5df518f1e3 on BNB Smart Chain (chain 56), from my Agentic Wallet. Recipient: [check a recipient above first]. Amount and message: [fill in]. This forwards 100% of the tip, no fee.";
 
 function updateTipPrompt() {
@@ -511,6 +512,7 @@ _on("agentic-check-btn", "click", checkAgenticStatus);
 _on("refresh-btn", "click", refreshBoard);
 _on("tip-resolve-btn", "click", doResolveTip);
 _on("copy-checkin-prompt-btn", "click", (e) => copyTextToClipboard(CHECKIN_PROMPT, e.currentTarget));
+_on("copy-badge-prompt-btn", "click", (e) => copyTextToClipboard(BADGE_PROMPT, e.currentTarget));
 _on("copy-tip-prompt-btn", "click", (e) => copyTextToClipboard(currentTipPrompt, e.currentTarget));
 _on("tip-amount", "input", updateTipPrompt);
 _on("tip-message", "input", updateTipPrompt);
