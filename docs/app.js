@@ -140,6 +140,7 @@ let resolvedTipTo = null;
 let leaderboardData = [];
 let leaderboardExpanded = false;
 const LEADERBOARD_PAGE = 10;
+const LOG_RPC_FALLBACK = "https://bsc-dataseed1.binance.org"; // second source for event logs, merged with the primary RPC
 // Generation counter for refreshBoard(): if a second refresh starts while
 // one is still awaiting RPC / name lookups, the older one must not render.
 let boardRefreshSeq = 0;
@@ -299,14 +300,42 @@ async function refreshBoard() {
   try {
     const fromBlock = CONFIG.deployBlock || 0;
     const toBlock = await boardRead.runner.provider.getBlockNumber();
+    // Event logs come from TWO RPCs and are merged: the primary RPC
+    // (publicnode) was seen returning incomplete results for old ranges
+    // on 2026-11-20 (only 2 of 11 CheckIn events), which made the board
+    // show 2 users instead of 9. A source that throws is skipped; logs
+    // are deduped by tx hash + log index.
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     async function queryChunked(filter) {
+      const seen = new Set();
       const out = [];
-      const CHUNK = 40000;
-      for (let from = fromBlock; from <= toBlock; from += CHUNK) {
-        const to = Math.min(from + CHUNK - 1, toBlock);
-        out.push(...await boardRead.queryFilter(filter, from, to));
+      const addLogs = (logs) => {
+        for (const log of logs) {
+          const key = log.transactionHash + ":" + log.index;
+          if (!seen.has(key)) { seen.add(key); out.push(log); }
+        }
+      };
+      async function pass(provider, chunk, gap) {
+        const c = new ethers.Contract(CONFIG.agentBoard, BOARD_ABI, provider);
+        for (let from = fromBlock; from <= toBlock; from += chunk) {
+          const to = Math.min(from + chunk - 1, toBlock);
+          let logs = null;
+          for (let attempt = 0; attempt < 2 && logs === null; attempt++) {
+            try {
+              logs = await c.queryFilter(filter, from, to);
+            } catch {
+              await sleep(1000);
+            }
+          }
+          if (logs) addLogs(logs);
+          await sleep(gap);
+        }
       }
-      return out;
+      await pass(boardRead.runner.provider, 40000, 300);
+      try {
+        await pass(new ethers.JsonRpcProvider(LOG_RPC_FALLBACK), 10000, 400);
+      } catch { /* secondary source is best-effort only */ }
+      return out.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index);
     }
     const checkIns = await queryChunked(boardRead.filters.CheckIn);
     if (seq !== boardRefreshSeq) return; // a newer refresh started; drop this stale one
