@@ -140,6 +140,9 @@ let resolvedTipTo = null;
 let leaderboardData = [];
 let leaderboardExpanded = false;
 const LEADERBOARD_PAGE = 10;
+// Generation counter for refreshBoard(): if a second refresh starts while
+// one is still awaiting RPC / name lookups, the older one must not render.
+let boardRefreshSeq = 0;
 
 function shortAddr(a) {
   return a ? a.slice(0, 6) + "…" + a.slice(-4) : "—";
@@ -260,12 +263,18 @@ async function renderLeaderboard() {
   }
   if (count) count.textContent = leaderboardData.length + " agent" + (leaderboardData.length === 1 ? "" : "s");
   const visible = leaderboardExpanded ? leaderboardData : leaderboardData.slice(0, LEADERBOARD_PAGE);
-  lb.innerHTML = "";
+  // Build the rows in a detached fragment and swap them in with one
+  // replaceChildren(): the old code cleared the list and then appended
+  // one row per awaited resolveName(), so two overlapping renders
+  // interleaved their appends and every address appeared twice
+  // (seen 2026-11-20 15:52 JST: header "2 agents", 4 rows).
+  const frag = document.createDocumentFragment();
   for (const [addr, s] of visible) {
     const li = document.createElement("li");
     li.textContent = (await resolveName(addr)) + " — " + s.streak + " day streak (" + s.total + " check-in" + (s.total === 1 ? "" : "s") + ")";
-    lb.appendChild(li);
+    frag.appendChild(li);
   }
+  lb.replaceChildren(frag);
   if (toggle) {
     if (leaderboardData.length > LEADERBOARD_PAGE) {
       toggle.hidden = false;
@@ -279,6 +288,7 @@ async function renderLeaderboard() {
 }
 
 async function refreshBoard() {
+  const seq = ++boardRefreshSeq;
   const lb = $("leaderboard");
   const tp = $("tippers");
   const rt = $("recent-tips");
@@ -299,13 +309,21 @@ async function refreshBoard() {
       return out;
     }
     const checkIns = await queryChunked(boardRead.filters.CheckIn);
+    if (seq !== boardRefreshSeq) return; // a newer refresh started; drop this stale one
     const tips = await queryChunked(boardRead.filters.Tip);
+    if (seq !== boardRefreshSeq) return;
     const latest = {};
     const totals = {};
     for (const ev of checkIns) {
-      latest[ev.args.user] = { streak: Number(ev.args.streak), total: Number(ev.args.totalCheckIns) };
-      totals[ev.args.user] = Number(ev.args.totalCheckIns);
+      // Normalise the key: the same address under different casing must
+      // never become two leaderboard rows.
+      const key = ev.args.user.toLowerCase();
+      latest[key] = { streak: Number(ev.args.streak), total: Number(ev.args.totalCheckIns) };
+      totals[key] = Number(ev.args.totalCheckIns);
     }
+    // Diagnostic for the open 2-vs-9 question (scan says 11 check-ins /
+    // 9 users, board shows 2): visible in the browser console on load.
+    console.info("[board] CheckIn events:", checkIns.length, "distinct users:", Object.keys(latest).length);
     // All check-in users, not just the top 20 by streak: sorted by
     // streak, then total check-ins. Rendered collapsed (first 10) with
     // a Show all / Show less toggle when the list is longer.
