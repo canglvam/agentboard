@@ -141,6 +141,19 @@ let leaderboardData = [];
 let leaderboardExpanded = false;
 const LEADERBOARD_PAGE = 10;
 const LOG_RPC_FALLBACK = "https://bsc-dataseed1.binance.org"; // second source for event logs, merged with the primary RPC
+// Fail a hung RPC call fast instead of spinning on "Loading…" forever:
+// public RPCs under load sometimes never answer an eth_getLogs request.
+async function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label + " timed out after " + (ms / 1000) + "s")), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 // Generation counter for refreshBoard(): if a second refresh starts while
 // one is still awaiting RPC / name lookups, the older one must not render.
 let boardRefreshSeq = 0;
@@ -269,12 +282,15 @@ async function renderLeaderboard() {
   // one row per awaited resolveName(), so two overlapping renders
   // interleaved their appends and every address appeared twice
   // (seen 2026-11-20 15:52 JST: header "2 agents", 4 rows).
+  // Resolve names in parallel: one by one, each lookup costs a round
+  // trip and the whole board waited on them in sequence.
+  const names = await Promise.all(visible.map(([addr]) => resolveName(addr)));
   const frag = document.createDocumentFragment();
-  for (const [addr, s] of visible) {
+  visible.forEach(([addr, s], i) => {
     const li = document.createElement("li");
-    li.textContent = (await resolveName(addr)) + " — " + s.streak + " day streak (" + s.total + " check-in" + (s.total === 1 ? "" : "s") + ")";
+    li.textContent = names[i] + " — " + s.streak + " day streak (" + s.total + " check-in" + (s.total === 1 ? "" : "s") + ")";
     frag.appendChild(li);
-  }
+  });
   lb.replaceChildren(frag);
   if (toggle) {
     if (leaderboardData.length > LEADERBOARD_PAGE) {
@@ -304,7 +320,9 @@ async function refreshBoard() {
     // (publicnode) was seen returning incomplete results for old ranges
     // on 2026-11-20 (only 2 of 11 CheckIn events), which made the board
     // show 2 users instead of 9. A source that throws is skipped; logs
-    // are deduped by tx hash + log index.
+    // are deduped by tx hash + log index. Both passes run in parallel
+    // with a per-pass deadline: the old sequential version waited on a
+    // slow second source and the board sat on "Loading…" forever.
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     async function queryChunked(filter) {
       const seen = new Set();
@@ -315,14 +333,16 @@ async function refreshBoard() {
           if (!seen.has(key)) { seen.add(key); out.push(log); }
         }
       };
-      async function pass(provider, chunk, gap) {
+      async function pass(provider, chunk, gap, deadlineMs) {
         const c = new ethers.Contract(CONFIG.agentBoard, BOARD_ABI, provider);
+        const started = Date.now();
         for (let from = fromBlock; from <= toBlock; from += chunk) {
+          if (Date.now() - started > deadlineMs) return; // too slow: use what we have
           const to = Math.min(from + chunk - 1, toBlock);
           let logs = null;
           for (let attempt = 0; attempt < 2 && logs === null; attempt++) {
             try {
-              logs = await c.queryFilter(filter, from, to);
+              logs = await withTimeout(c.queryFilter(filter, from, to), 20000, "eth_getLogs");
             } catch {
               await sleep(1000);
             }
@@ -331,10 +351,10 @@ async function refreshBoard() {
           await sleep(gap);
         }
       }
-      await pass(boardRead.runner.provider, 40000, 300);
-      try {
-        await pass(new ethers.JsonRpcProvider(LOG_RPC_FALLBACK), 10000, 400);
-      } catch { /* secondary source is best-effort only */ }
+      await Promise.allSettled([
+        pass(boardRead.runner.provider, 40000, 300, 60000),
+        pass(new ethers.JsonRpcProvider(LOG_RPC_FALLBACK), 10000, 400, 60000),
+      ]);
       return out.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index);
     }
     const checkIns = await queryChunked(boardRead.filters.CheckIn);
@@ -364,20 +384,26 @@ async function refreshBoard() {
     }
     const topTippers = Object.entries(tipped).sort((a, b) => (b[1] > a[1] ? 1 : -1)).slice(0, 10);
     tp.innerHTML = topTippers.length ? "" : "<li>No tips yet.</li>";
-    for (const [addr, amt] of topTippers) {
+    const tipperNames = await Promise.all(topTippers.map(([addr]) => resolveName(addr)));
+    topTippers.forEach(([addr, amt], i) => {
       const li = document.createElement("li");
-      li.textContent = (await resolveName(addr)) + " — " + ethers.formatEther(amt) + " BNB received";
+      li.textContent = tipperNames[i] + " — " + ethers.formatEther(amt) + " BNB received";
       tp.appendChild(li);
-    }
+    });
     rt.innerHTML = tips.length ? "" : "<li>No tips yet.</li>";
-    for (const ev of tips.slice(-10).reverse()) {
+    const recentTips = tips.slice(-10).reverse();
+    const [fromNames, toNames] = await Promise.all([
+      Promise.all(recentTips.map((ev) => resolveName(ev.args.from))),
+      Promise.all(recentTips.map((ev) => resolveName(ev.args.to))),
+    ]);
+    recentTips.forEach((ev, i) => {
       const li = document.createElement("li");
       li.textContent =
-        (await resolveName(ev.args.from)) + " → " + (await resolveName(ev.args.to)) +
+        fromNames[i] + " → " + toNames[i] +
         ": " + ethers.formatEther(ev.args.amount) + " BNB" +
         (ev.args.message ? " — “" + ev.args.message + "”" : "");
       rt.appendChild(li);
-    }
+    });
   } catch (e) {
     lb.innerHTML = "<li>Could not load the board: " + e.message + "</li>";
   }
