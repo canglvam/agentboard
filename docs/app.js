@@ -313,6 +313,27 @@ async function refreshBoard() {
     lb.innerHTML = "<li>Board not ready yet — please refresh the page.</li>";
     return;
   }
+  // Snapshot of every check-in user, from the last verified full scan.
+  // Free RPCs keep dropping old log ranges (publicnode returns
+  // incomplete ranges and now 403s this client; dataseed nodes return
+  // zero logs even for a single block that holds an event), so without
+  // this the board only ever shows whoever checked in most recently.
+  // The snapshot renders immediately; the live log query below refreshes
+  // it with whoever checked in since. Live data wins over the snapshot.
+  let snapshot = {};
+  try {
+    const r = await fetch("checkin-users.json", { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      for (const u of (j.users || [])) {
+        snapshot[u.address.toLowerCase()] = { streak: u.streak, total: u.total };
+      }
+    }
+  } catch { /* snapshot is best-effort; live logs are the fallback */ }
+  if (Object.keys(snapshot).length) {
+    leaderboardData = Object.entries(snapshot).sort((a, b) => (b[1].streak - a[1].streak) || (b[1].total - a[1].total));
+    await renderLeaderboard();
+  }
   try {
     const fromBlock = CONFIG.deployBlock || 0;
     const toBlock = await boardRead.runner.provider.getBlockNumber();
@@ -376,7 +397,10 @@ async function refreshBoard() {
     // All check-in users, not just the top 20 by streak: sorted by
     // streak, then total check-ins. Rendered collapsed (first 10) with
     // a Show all / Show less toggle when the list is longer.
-    leaderboardData = Object.entries(latest).sort((a, b) => (b[1].streak - a[1].streak) || (b[1].total - a[1].total));
+    // Live events overlay the snapshot (fresher data wins); users the
+    // log query missed stay on the board from the snapshot.
+    const merged = { ...snapshot, ...latest };
+    leaderboardData = Object.entries(merged).sort((a, b) => (b[1].streak - a[1].streak) || (b[1].total - a[1].total));
     await renderLeaderboard();
     const tipped = {};
     for (const ev of tips) {
@@ -405,7 +429,11 @@ async function refreshBoard() {
       rt.appendChild(li);
     });
   } catch (e) {
-    lb.innerHTML = "<li>Could not load the board: " + e.message + "</li>";
+    // If the snapshot already rendered, keep it: a failed live query
+    // must not wipe the board back to an error.
+    if (!leaderboardData.length) {
+      lb.innerHTML = "<li>Could not load the board: " + e.message + "</li>";
+    }
   }
 }
 
