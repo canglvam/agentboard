@@ -133,6 +133,13 @@ function initReadContracts() {
 }
 let nameCache = {};
 let resolvedTipTo = null;
+// Leaderboard state: the board lists EVERYONE who has checked in at
+// least once (sorted by streak, then total), not just a top 20. It
+// renders collapsed (first LEADERBOARD_PAGE rows) with a Show all /
+// Show less toggle when the list is longer.
+let leaderboardData = [];
+let leaderboardExpanded = false;
+const LEADERBOARD_PAGE = 10;
 
 function shortAddr(a) {
   return a ? a.slice(0, 6) + "…" + a.slice(-4) : "—";
@@ -241,6 +248,36 @@ async function refreshMyStats() {
   $("badge-btn").textContent = hasBadge ? "Badge claimed ✓" : "Claim my free badge";
 }
 
+async function renderLeaderboard() {
+  const lb = $("leaderboard");
+  const count = $("leaderboard-count");
+  const toggle = $("leaderboard-toggle-btn");
+  if (!leaderboardData.length) {
+    lb.innerHTML = "<li>No check-ins yet — be the first.</li>";
+    if (count) count.textContent = "";
+    if (toggle) toggle.hidden = true;
+    return;
+  }
+  if (count) count.textContent = leaderboardData.length + " agent" + (leaderboardData.length === 1 ? "" : "s");
+  const visible = leaderboardExpanded ? leaderboardData : leaderboardData.slice(0, LEADERBOARD_PAGE);
+  lb.innerHTML = "";
+  for (const [addr, s] of visible) {
+    const li = document.createElement("li");
+    li.textContent = (await resolveName(addr)) + " — " + s.streak + " day streak (" + s.total + " check-in" + (s.total === 1 ? "" : "s") + ")";
+    lb.appendChild(li);
+  }
+  if (toggle) {
+    if (leaderboardData.length > LEADERBOARD_PAGE) {
+      toggle.hidden = false;
+      toggle.textContent = leaderboardExpanded
+        ? "Show less"
+        : "Show all " + leaderboardData.length + " agents";
+    } else {
+      toggle.hidden = true;
+    }
+  }
+}
+
 async function refreshBoard() {
   const lb = $("leaderboard");
   const tp = $("tippers");
@@ -269,15 +306,11 @@ async function refreshBoard() {
       latest[ev.args.user] = { streak: Number(ev.args.streak), total: Number(ev.args.totalCheckIns) };
       totals[ev.args.user] = Number(ev.args.totalCheckIns);
     }
-    const ranked = Object.entries(latest).sort((a, b) => b[1].streak - a[1].streak).slice(0, 20);
-    lb.innerHTML = ranked.length
-      ? ""
-      : "<li>No check-ins yet — be the first.</li>";
-    for (const [addr, s] of ranked) {
-      const li = document.createElement("li");
-      li.textContent = (await resolveName(addr)) + " — " + s.streak + " day streak (" + s.total + " check-ins)";
-      lb.appendChild(li);
-    }
+    // All check-in users, not just the top 20 by streak: sorted by
+    // streak, then total check-ins. Rendered collapsed (first 10) with
+    // a Show all / Show less toggle when the list is longer.
+    leaderboardData = Object.entries(latest).sort((a, b) => (b[1].streak - a[1].streak) || (b[1].total - a[1].total));
+    await renderLeaderboard();
     const tipped = {};
     for (const ev of tips) {
       tipped[ev.args.to] = (tipped[ev.args.to] || 0n) + ev.args.amount;
@@ -510,6 +543,7 @@ async function doSendTip() {
 const _on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
 _on("agentic-check-btn", "click", checkAgenticStatus);
 _on("refresh-btn", "click", refreshBoard);
+_on("leaderboard-toggle-btn", "click", async () => { leaderboardExpanded = !leaderboardExpanded; await renderLeaderboard(); });
 _on("tip-resolve-btn", "click", doResolveTip);
 _on("copy-checkin-prompt-btn", "click", (e) => copyTextToClipboard(CHECKIN_PROMPT, e.currentTarget));
 _on("copy-badge-prompt-btn", "click", (e) => copyTextToClipboard(BADGE_PROMPT, e.currentTarget));
